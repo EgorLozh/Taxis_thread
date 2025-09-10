@@ -13,14 +13,14 @@ class GeometryUtils:
     
     @staticmethod
     def calculate_distance(point_a: Tuple[int, int], point_b: Tuple[int, int]) -> float:
-        """Вычисляет евклидово расстояние между двумя точками."""
+        """Вычисляет манхетанское расстояние между двумя точками."""
         return (point_b[0] - point_a[0]) + (point_b[1] - point_a[1])
     
     @staticmethod
     def calculate_movement_steps(start: Tuple[int, int], end: Tuple[int, int], speed: float) -> int:
         """Рассчитывает количество шагов для перемещения с учетом скорости."""
         distance = GeometryUtils.calculate_distance(start, end)
-        return max(1, int(distance / speed))
+        return max(2, int(distance / speed))
 
 
 class TaxiService:

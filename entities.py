@@ -2,6 +2,7 @@
 
 from dataclasses import dataclass, field
 from enum import Enum
+from queue import Queue
 import random
 from typing import Optional, Tuple
 from uuid import uuid4, UUID
@@ -17,6 +18,13 @@ class TaxiStatus(Enum):
     MOVING_TO_CLIENT = "moving_to_client"
     ON_RIDE = "on_ride"
 
+class ClientStatus(Enum):
+    """Статусы клиентов"""
+    WAITING = "waiting"
+    ON_RIDE = "on_ride"
+    ARRIVED = "arrived"
+    REFUSED = "refused"
+
 
 @dataclass
 class Taxi:
@@ -27,11 +35,10 @@ class Taxi:
     status: TaxiStatus = TaxiStatus.FREE
     location: Tuple[int, int] = (0, 0)
     order: Optional["Order"] = None
-    # Мьютекс для защиты состояния конкретного такси
+    
     lock: threading.Lock = field(default_factory=threading.Lock, repr=False)
     
     def get_location(self) -> Tuple[int, int]:
-        """Безопасное получение координат"""
         with self.lock:
             return self.location
     
@@ -73,8 +80,9 @@ class Client:
     patience_timeout: float
     # Текущий активный заказ
     current_order: Optional[Order] = None
+    status: ClientStatus = ClientStatus.WAITING
     
-    def place_order(self, to_location: Tuple[int, int], order_queue: 'Queue[Order]') -> Optional[Order]:
+    def place_order(self, to_location: Tuple[int, int], order_queue: Queue[Order]) -> Optional[Order]:
         """Клиент создает заказ и добавляет его в очередь"""
         self.current_order = Order(
             client=self, 
@@ -102,6 +110,8 @@ class Client:
                 # Таймаут истек - отменяем заказ
                 self.current_order.cancel()
                 print(f"Client {self.id} got impatient and cancelled order")
+                self.current_order = None
+                self.status = ClientStatus.REFUSED
                 return False
             return True
         except Exception as e:

@@ -35,7 +35,7 @@ class TaxiParkSimulator:
             Taxi(
                 id=i, 
                 color="yellow", 
-                speed=random.uniform(0.6, 2.0),  # Разные скорости
+                speed=random.uniform(3, 6),  # Разные скорости
                 location=(random.randint(50, 750), random.randint(50, 550)),
                 status=TaxiStatus.FREE
             ) 
@@ -68,7 +68,7 @@ class TaxiParkSimulator:
 def main():
     """Основная функция запуска"""
     # Создаем симулятор
-    simulator = TaxiParkSimulator(num_dispatchers=2, num_taxis=2)
+    simulator = TaxiParkSimulator(num_dispatchers=2, num_taxis=3)
     
     # Создаем GUI
     root = tk.Tk()

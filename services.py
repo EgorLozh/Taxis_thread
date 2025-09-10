@@ -13,8 +13,8 @@ class GeometryUtils:
     
     @staticmethod
     def calculate_distance(point_a: Tuple[int, int], point_b: Tuple[int, int]) -> float:
-        """Вычисляет манхетанское расстояние между двумя точками."""
-        return (point_b[0] - point_a[0]) + (point_b[1] - point_a[1])
+        """Вычисляет евклидово расстояние между двумя точками."""
+        return math.sqrt((point_b[0] - point_a[0])**2 + (point_b[1] - point_a[1])**2)
     
     @staticmethod
     def calculate_movement_steps(start: Tuple[int, int], end: Tuple[int, int], speed: float) -> int:
@@ -45,35 +45,33 @@ class TaxiService:
         return nearest_taxi
 
     def simulate_ride(self, taxi: Taxi, order: Order):
-        """Симулирует поездку такси: к клиенту -> к точке назначения"""
         try:
-            # 1. Едем к клиенту
+            # Движение к клиенту
             taxi.status = TaxiStatus.MOVING_TO_CLIENT
-            print(f"Taxi {taxi.id} moving to client at {order.from_location} (speed: {taxi.speed})")
-            
             self._move_taxi_to_target(taxi, order.from_location)
             
-            # 2. Забираем клиента
+            # Проверка отмены заказа
+            if order.is_cancelled:
+                print(f"Order {order.uuid} cancelled during movement to client")
+                return
+            
+            # Забрать клиента
             with taxi.lock:
                 taxi.status = TaxiStatus.ON_RIDE
-            print(f"Taxi {taxi.id} picked up client {order.client.id}")
+            order.client.seet_in_taxi()
             
-            # 3. Едем к точке назначения
+            # Движение к точке назначения
             self._move_taxi_to_target(taxi, order.to_location)
             
-            # 4. Завершаем поездку
+            # Завершение поездки
             with taxi.lock:
                 taxi.status = TaxiStatus.FREE
                 taxi.order = None
-                order.taxi = None
-            print(f"Taxi {taxi.id} completed order {order.uuid}")
-            
         except Exception as e:
-            print(f"Error in taxi {taxi.id} simulation: {e}")
+            print(f"Error in taxi simulation: {e}")
             with taxi.lock:
                 taxi.status = TaxiStatus.FREE
                 taxi.order = None
-
     def _move_taxi_to_target(self, taxi: Taxi, target: Tuple[int, int]):
         """Плавное перемещение такси к цели с учетом его скорости"""
         current_location = taxi.get_location()
@@ -90,7 +88,7 @@ class TaxiService:
         dy = target_y - current_y
         
         for step in range(steps):
-            if not self.is_running:
+            if not self.is_running or (hasattr(taxi, 'order') and taxi.order and taxi.order.is_cancelled):
                 break
                 
             progress = (step + 1) / steps
@@ -98,7 +96,7 @@ class TaxiService:
             new_y = current_y + dy * progress
             
             taxi.set_location((int(new_x), int(new_y)))
-            time.sleep(0.1)  # Замедляем для наглядности
+            time.sleep(0.05)  # Уменьшите задержку для более плавного движения
 
     def stop(self):
         """Останавливает все операции такси"""
@@ -143,7 +141,6 @@ class DispatcherService:
                     order = self.order_queue.get(timeout=0.5)
                     dispatcher.set_status(DispatcherStatus.PROCESSING)
                     self._process_order(dispatcher, order)
-                    dispatcher.increment_processed()
                     
                 except Empty:
                     continue
@@ -154,7 +151,6 @@ class DispatcherService:
     
     def _process_order(self, dispatcher: Dispatcher, order: Order):
         """Обрабатывает один заказ"""
-        print(f"Dispatcher {dispatcher.id} processing order {order.uuid}")
         
         # Проверяем не отменен ли уже заказ
         if order.is_cancelled:
@@ -165,7 +161,6 @@ class DispatcherService:
         taxi = self.taxi_service.find_nearest_taxi(order.from_location)
         
         if not taxi:
-            print(f"No available taxi for order {order.uuid}. Requeuing.")
             # Возвращаем заказ в очередь для повторной обработки
             self.order_queue.put(order)
             return
@@ -180,6 +175,7 @@ class DispatcherService:
         
         # Уведомляем клиента, что такси найдено
         order.assigned_event.set()
+        dispatcher.increment_processed()
         
         # Запускаем симуляцию поездки в отдельном потоке
         ride_thread = threading.Thread(
@@ -247,6 +243,7 @@ class ClientService:
             if not assigned and not client.current_order.is_cancelled:
                 # Таймаут истек - отменяем заказ
                 client.current_order.cancel()
+                client.refused()
                 print(f"Client {client.id} got impatient and cancelled order")
                 
         except Exception as e:

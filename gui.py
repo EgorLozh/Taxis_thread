@@ -8,7 +8,7 @@ import time
 from PIL import Image, ImageTk
 import math
 
-from entities import Taxi, TaxiStatus, Order, Client
+from entities import ClientStatus, Taxi, TaxiStatus, Order, Client
 from services import TaxiService, DispatcherService, ClientService
 
 
@@ -111,6 +111,8 @@ class TaxiParkGUI:
     
     def draw_client(self, client: Client):
         """Рисует клиента на карте"""
+        if client.status == ClientStatus.REFUSED or client.status == ClientStatus.ON_RIDE:
+            return
         x, y = client.location
         client_id = f"client_{client.id}"
         

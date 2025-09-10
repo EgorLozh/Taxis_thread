@@ -81,6 +81,11 @@ class Client:
     # Текущий активный заказ
     current_order: Optional[Order] = None
     status: ClientStatus = ClientStatus.WAITING
+    lock: threading.Lock = field(default_factory=threading.Lock, repr=False)
+
+    def set_status(self, new_status: ClientStatus):
+        with self.lock:
+            self.status = new_status
     
     def place_order(self, to_location: Tuple[int, int], order_queue: Queue[Order]) -> Optional[Order]:
         """Клиент создает заказ и добавляет его в очередь"""
@@ -98,25 +103,11 @@ class Client:
             self.current_order = None
             return None
     
-    def wait_for_taxi(self, timeout: float) -> bool:
-        """Ожидание назначения такси с таймаутом"""
-        if not self.current_order:
-            return False
-            
-        try:
-            # Ждем пока диспетчер найдет такси или истечет таймаут
-            assigned = self.current_order.assigned_event.wait(timeout=timeout)
-            if not assigned:
-                # Таймаут истек - отменяем заказ
-                self.current_order.cancel()
-                print(f"Client {self.id} got impatient and cancelled order")
-                self.current_order = None
-                self.status = ClientStatus.REFUSED
-                return False
-            return True
-        except Exception as e:
-            print(f"Client {self.id} error while waiting: {e}")
-            return False
+    def seet_in_taxi(self):
+        self.set_status(ClientStatus.ON_RIDE)
+    
+    def refused(self):
+        self.set_status(ClientStatus.REFUSED)
 
 
 class DispatcherStatus(Enum):

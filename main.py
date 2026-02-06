@@ -17,15 +17,16 @@ class TaxiParkSimulator:
     
     def __init__(self, num_dispatchers, num_taxis):
         self.order_queue = Queue()
+        self.log_queue = Queue()  # Очередь сообщений для вывода в GUI
         self.taxis = self._create_taxis(num_taxis)
         self.dispatchers = self._create_dispatchers(num_dispatchers)
         
         # Инициализация сервисов
-        self.taxi_service = TaxiService(self.taxis)
+        self.taxi_service = TaxiService(self.taxis, self.log_queue)
         self.dispatcher_service = DispatcherService(
-            self.dispatchers, self.order_queue, self.taxi_service
+            self.dispatchers, self.order_queue, self.taxi_service, self.log_queue
         )
-        self.client_service = ClientService(self.order_queue)
+        self.client_service = ClientService(self.order_queue, self.log_queue)
         
         self.is_running = False
         

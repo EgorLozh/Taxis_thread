@@ -26,8 +26,9 @@ class GeometryUtils:
 class TaxiService:
     """Сервис для управления такси и поездками"""
     
-    def __init__(self, taxis: List[Taxi]):
+    def __init__(self, taxis: List[Taxi], log_queue: Optional[Queue] = None):
         self.taxis = taxis
+        self.log_queue = log_queue
         self.is_running = True
     
     def find_nearest_taxi(self, target_location: Tuple[int, int]) -> Optional[Taxi]:
@@ -52,7 +53,10 @@ class TaxiService:
             
             # Проверка отмены заказа
             if order.is_cancelled:
-                print(f"Order {order.uuid} cancelled during movement to client")
+                msg = f"Заказ {order.uuid} отменён по пути к клиенту"
+                print(msg)
+                if self.log_queue:
+                    self.log_queue.put(msg)
                 return
             
             # Забрать клиента
@@ -106,10 +110,11 @@ class TaxiService:
 class DispatcherService:
     """Сервис для управления диспетчерами"""
     
-    def __init__(self, dispatchers: List[Dispatcher], order_queue: Queue, taxi_service: TaxiService):
+    def __init__(self, dispatchers: List[Dispatcher], order_queue: Queue, taxi_service: TaxiService, log_queue: Optional[Queue] = None):
         self.dispatchers = dispatchers
         self.order_queue = order_queue
         self.taxi_service = taxi_service
+        self.log_queue = log_queue
         self.is_running = False
         self.threads = []
     
@@ -154,7 +159,10 @@ class DispatcherService:
         
         # Проверяем не отменен ли уже заказ
         if order.is_cancelled:
-            print(f"Order {order.uuid} already cancelled, skipping")
+            msg = f"Заказ {order.uuid} уже отменён клиентом, пропуск"
+            print(msg)
+            if self.log_queue:
+                self.log_queue.put(msg)
             return
         
         # Ищем ближайшее такси
@@ -197,14 +205,15 @@ class DispatcherService:
 class ClientService:
     """Сервис для управления клиентами и их терпением"""
     
-    def __init__(self, order_queue: Queue):
+    def __init__(self, order_queue: Queue, log_queue: Optional[Queue] = None):
         self.order_queue = order_queue
+        self.log_queue = log_queue
         self.active_clients = {}
         self.is_running = False
         self.threads = []
     
     def create_client(self, from_location: Tuple[int, int], to_location: Tuple[int, int], 
-                     patience: float = 30.0) -> Optional[Client]:
+                     patience: float = 5.0) -> Optional[Client]:
         """Создает клиента и его заказ"""
         client = Client(
             id=len(self.active_clients) + 1,
@@ -244,7 +253,10 @@ class ClientService:
                 # Таймаут истек - отменяем заказ
                 client.current_order.cancel()
                 client.refused()
-                print(f"Client {client.id} got impatient and cancelled order")
+                msg = f"Клиент {client.id} отменил заказ (истекло время ожидания)"
+                print(msg)
+                if self.log_queue:
+                    self.log_queue.put(msg)
                 
         except Exception as e:
             print(f"Client {client.id} waiting error: {e}")

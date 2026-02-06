@@ -3,6 +3,7 @@
 import tkinter as tk
 from tkinter import ttk, messagebox
 from typing import Dict, Tuple, List, Optional
+from queue import Empty
 import threading
 import time
 from PIL import Image, ImageTk
@@ -103,7 +104,7 @@ class TaxiParkGUI:
         client = self.simulator.client_service.create_client(
             (start_x, start_y), 
             (end_x, end_y),
-            patience=20.0
+            patience=2.0
         )
         
         if client:
@@ -181,6 +182,15 @@ class TaxiParkGUI:
     def update_display(self):
         """Обновление отображения"""
         try:
+            # Выводим накопленные сообщения из очереди (отмена заказа и т.д.)
+            if hasattr(self.simulator, 'log_queue') and self.simulator.log_queue:
+                try:
+                    while True:
+                        msg = self.simulator.log_queue.get_nowait()
+                        self.log(msg)
+                except Empty:
+                    pass
+
             # Очищаем canvas
             self.canvas.delete("all")
             self.taxi_icons.clear()
